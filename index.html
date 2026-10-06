@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Solarbridge Housing Payout Calculator</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --ink: #17212b;
+    --muted: #64748b;
+    --line: #dfe4ea;
+    --brand: #0f6fd6;
+    --accent: #0b8a4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 5px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+  input[type="text"], input[type="number"] {
+    width: 100%; padding: 11px 12px; font-size: 16px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 9px 0; border-top: 1px solid var(--line);
+  }
+  .toggle-row .name { font-size: 15px; font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+  .seg button { border: 0; background: #fff; color: var(--muted); padding: 8px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .seg button.on { background: var(--brand); color: #fff; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button {
+    border: 1px solid var(--line); background: #fff; color: var(--muted);
+    border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .tabs button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .sub-field { margin-top: 10px; }
+  .custom-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .custom-row input.desc { flex: 2; }
+  .custom-row input.amt { flex: 1; min-width: 0; }
+  .custom-row button { border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 8px; width: 40px; font-size: 18px; cursor: pointer; flex: none; }
+  .add-btn { border: 1px dashed var(--line); background: #fff; color: var(--brand); padding: 9px 14px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .result { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 16px; text-align: center; }
+  .result .cap { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .total { font-size: 40px; font-weight: 800; color: var(--accent); margin: 4px 0 16px; letter-spacing: -.02em; }
+  .milestones { display: flex; gap: 10px; }
+  .ms { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 12px 8px; }
+  .ms .lbl { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .ms .val { font-size: 19px; font-weight: 700; margin-top: 2px; }
+  .note { margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .warn { margin-top: 12px; font-size: 13px; color: #b42318; background: #fef3f2; border: 1px solid #fecdca; border-radius: 8px; padding: 10px; text-align: left; }
+  .hidden { display: none; }
+  .foot { text-align: center; font-size: 12px; color: var(--muted); margin: 18px 0 8px; }
+  .reset { background: none; border: 0; color: var(--brand); font-size: 13px; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Housing Payout Calculator</h1>
+  <p class="sub">Enter a deal one of your housed reps closed to see what it pays you.</p>
+
+  <div class="tabs" id="modeTabs">
+    <button type="button" data-mode="standard" class="on">Standard</button>
+    <button type="button" data-mode="sunstone">Sunstone</button>
+  </div>
+
+  <div class="card">
+    <h2>Deal Information</h2>
+
+    <div class="toggle-row hidden" id="ssEntryRow" style="border-top:0;padding-top:0">
+      <span class="name">What do you have?</span>
+      <span class="seg" id="ssEntrySeg">
+        <button type="button" data-ss="total" class="on">Total commissions</button>
+        <button type="button" data-ss="ppw">Gross PPW</button>
+      </span>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="field" id="ppwField">
+        <label for="ppw">Gross PPW Sold <span class="hint">($/W)</span></label>
+        <input id="ppw" type="number" inputmode="decimal" min="0" step="0.01" placeholder="4.25">
+      </div>
+      <div class="field hidden" id="ssTotalField">
+        <label for="ssTotal">Total Commissions <span class="hint">($)</span></label>
+        <input id="ssTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="15000">
+      </div>
+      <div class="field">
+        <label for="kw">System Size <span class="hint">(kW)</span></label>
+        <input id="kw" type="number" inputmode="decimal" min="0" step="0.01" placeholder="8.6">
+      </div>
+    </div>
+    <div class="hint" id="wattsNote">&nbsp;</div>
+    <div class="hint hidden" id="ssTotalHint" style="margin-top:6px">
+      Use the total commission Sunstone gave the rep — adders are already taken out of it.
+    </div>
+  </div>
+
+  <div class="card" id="addersCard">
+    <h2>Adders</h2>
+
+    <div id="stdBatteries">
+      <div class="field">
+        <label for="pw">Tesla Powerwalls <span class="hint">(qty)</span></label>
+        <input id="pw" type="number" inputmode="numeric" min="0" step="1" value="0">
+        <div class="hint" style="margin-top:4px">First one is full price, each additional one is less.</div>
+      </div>
+      <div class="field">
+        <label for="qc">QCELLS Batteries <span class="hint">(qty)</span></label>
+        <input id="qc" type="number" inputmode="numeric" min="0" step="1" value="0">
+      </div>
+    </div>
+
+    <div class="field hidden" id="ssBatteryField">
+      <label for="ssBatt">Batteries <span class="hint">(qty)</span></label>
+      <input id="ssBatt" type="number" inputmode="numeric" min="0" step="1" value="0">
+      <div class="hint" style="margin-top:4px">First one is full price, each additional one is less.</div>
+    </div>
+
+    <div class="toggle-row">
+      <span class="name">QCELLS / BE</span>
+      <span class="seg" data-toggle="qbe">
+        <button type="button" data-val="0" class="on">No</button>
+        <button type="button" data-val="1">Yes</button>
+      </span>
+    </div>
+
+    <div class="toggle-row">
+      <span class="name">MPU</span>
+      <span class="seg" data-toggle="mpu">
+        <button type="button" data-val="0" class="on">No</button>
+        <button type="button" data-val="1">Yes</button>
+      </span>
+    </div>
+
+    <div class="toggle-row">
+      <span class="name">Trenching</span>
+      <span class="seg" data-toggle="trench">
+        <button type="button" data-val="0" class="on">No</button>
+        <button type="button" data-val="1">Yes</button>
+      </span>
+    </div>
+    <div id="trenchWrap" class="sub-field hidden">
+      <label for="trenchFt">How many feet of trenching?</label>
+      <input id="trenchFt" type="number" inputmode="decimal" min="0" step="1" value="0">
+    </div>
+
+    <div class="toggle-row">
+      <span class="name">Ground Mount</span>
+      <span class="seg" data-toggle="gm">
+        <button type="button" data-val="0" class="on">No</button>
+        <button type="button" data-val="1">Yes</button>
+      </span>
+    </div>
+
+    <div class="toggle-row">
+      <span class="name">Meter Relocation</span>
+      <span class="seg" data-toggle="meter">
+        <button type="button" data-val="0" class="on">No</button>
+        <button type="button" data-val="1">Yes</button>
+      </span>
+    </div>
+
+    <div style="margin-top:14px">
+      <label>Other Adders <span class="hint">(optional)</span></label>
+      <div id="customList"></div>
+      <button type="button" class="add-btn" id="addCustom">+ Add adder</button>
+    </div>
+  </div>
+
+  <div class="result">
+    <div class="cap">Your Housing Payout</div>
+    <div class="total" id="total">$0.00</div>
+    <div class="milestones">
+      <div class="ms"><div class="lbl">M2 — 80%</div><div class="val" id="m2">$0.00</div></div>
+      <div class="ms"><div class="lbl">M3 — 20%</div><div class="val" id="m3">$0.00</div></div>
+    </div>
+    <div class="warn hidden" id="warn"></div>
+  </div>
+
+  <div class="foot"><button class="reset" id="reset">Reset calculator</button></div>
+</div>
+
+<script>
+/* ============================================================
+   Solarbridge Housing Payout Calculator.
+   Standalone. Shows only what a housing provider earns on a deal
+   closed by one of their housed reps. Contains none of the rep,
+   manager, override or platform figures.
+   ============================================================ */
+var CONFIG = {
+  BASELINE_PPW: 2.50,   // $/W the commissionable stack is priced from
+  HOUSING_PCT:  0.10,   // housing's share of the stack
+
+  M2_PCT: 0.80,
+  M3_PCT: 0.20,
+
+  POWERWALL_FIRST:      11000,
+  POWERWALL_ADDITIONAL:  8000,
+  QCELLS_BATTERY:        7900,
+  QCELLS_BE_PER_W:        0.10,
+  MPU:                   3500,
+  TRENCHING_PER_FT:        20,
+  GROUND_MOUNT_PER_W:       1.00,
+  METER_RELOCATION:      6000,
+
+  SUNSTONE: {
+    WITHHOLD_PER_KW:     100,
+    BATTERY_FIRST:     13500,
+    BATTERY_ADDITIONAL: 11000,
+    MPU:                4000
+  }
+};
+/* ========================================================== */
+
+function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+function nonNeg(n) { n = parseFloat(n); return (isFinite(n) && n > 0) ? n : 0; }
+
+function powerwallCost(n) {
+  n = Math.floor(nonNeg(n));
+  return n <= 0 ? 0 : CONFIG.POWERWALL_FIRST + (n - 1) * CONFIG.POWERWALL_ADDITIONAL;
+}
+function sunstoneBatteryCost(n) {
+  n = Math.floor(nonNeg(n));
+  return n <= 0 ? 0 : CONFIG.SUNSTONE.BATTERY_FIRST + (n - 1) * CONFIG.SUNSTONE.BATTERY_ADDITIONAL;
+}
+
+function adderTotal(d, watts, sunstone) {
+  var batteries = sunstone
+    ? sunstoneBatteryCost(d.ssBatteries)
+    : powerwallCost(d.powerwalls) + Math.floor(nonNeg(d.qcellsBatteries)) * CONFIG.QCELLS_BATTERY;
+  var t = batteries +
+          (d.qcellsBE ? watts * CONFIG.QCELLS_BE_PER_W : 0) +
+          (d.mpu ? (sunstone ? CONFIG.SUNSTONE.MPU : CONFIG.MPU) : 0) +
+          (d.trenching ? nonNeg(d.trenchFeet) * CONFIG.TRENCHING_PER_FT : 0) +
+          (d.groundMount ? watts * CONFIG.GROUND_MOUNT_PER_W : 0) +
+          (d.meterRelocation ? CONFIG.METER_RELOCATION : 0);
+  (d.customAdders || []).forEach(function (c) { t += nonNeg(c.amount); });
+  return t;
+}
+
+function computeHousing(d) {
+  var sunstone = (d.mode === 'sunstone');
+  var byTotal  = sunstone && (d.ssEntry === 'total');
+
+  var watts = nonNeg(d.systemKw) * 1000;
+  var kw    = nonNeg(d.systemKw);
+  var adders, stackRaw;
+
+  if (byTotal) {
+    adders   = 0;
+    stackRaw = nonNeg(d.ssTotal) - (kw * CONFIG.SUNSTONE.WITHHOLD_PER_KW);
+  } else {
+    adders   = adderTotal(d, watts, sunstone);
+    stackRaw = (nonNeg(d.grossPPW) * watts) - (watts * CONFIG.BASELINE_PPW) - adders;
+  }
+  var stack = Math.max(0, stackRaw);
+
+  var total = round2(stack * CONFIG.HOUSING_PCT);
+  var m2    = round2(total * CONFIG.M2_PCT);
+  var m3    = round2(total - m2);   // remainder, so M2 + M3 === Total exactly
+
+  return { watts: watts, byTotal: byTotal, totalAdders: adders,
+           stackRaw: stackRaw, stack: stack, total: total, m2: m2, m3: m3 };
+}
+
+/* ---------- UI ---------- */
+if (typeof document !== 'undefined') {
+  var $ = function (id) { return document.getElementById(id); };
+  var money = function (n) {
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  var state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
+                mode: 'standard', ssEntry: 'total' };
+
+  function applyMode() {
+    var ss      = (state.mode === 'sunstone');
+    var byTotal = ss && state.ssEntry === 'total';
+    $('ssEntryRow').classList.toggle('hidden', !ss);
+    $('ssTotalField').classList.toggle('hidden', !byTotal);
+    $('ppwField').classList.toggle('hidden', byTotal);
+    $('ssTotalHint').classList.toggle('hidden', !byTotal);
+    $('addersCard').classList.toggle('hidden', byTotal);
+    $('stdBatteries').classList.toggle('hidden', ss);
+    $('ssBatteryField').classList.toggle('hidden', !ss);
+  }
+
+  $('modeTabs').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    $('modeTabs').querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    state.mode = b.dataset.mode;
+    applyMode(); render();
+  });
+
+  $('ssEntrySeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    $('ssEntrySeg').querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    state.ssEntry = b.dataset.ss;
+    applyMode(); render();
+  });
+
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    if (!seg.dataset.toggle) return;
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      state[seg.dataset.toggle] = parseInt(b.dataset.val, 10);
+      $('trenchWrap').classList.toggle('hidden', !state.trench);
+      render();
+    });
+  });
+
+  $('addCustom').addEventListener('click', function () {
+    var row = document.createElement('div');
+    row.className = 'custom-row';
+    row.innerHTML =
+      '<input class="desc" type="text" placeholder="Description">' +
+      '<input class="amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="$0">' +
+      '<button type="button" title="Remove">&times;</button>';
+    row.querySelector('button').addEventListener('click', function () { row.remove(); render(); });
+    row.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', render); });
+    $('customList').appendChild(row);
+    row.querySelector('.desc').focus();
+  });
+
+  $('reset').addEventListener('click', function () {
+    ['ppw', 'kw', 'ssTotal'].forEach(function (id) { $(id).value = ''; });
+    ['pw', 'qc', 'ssBatt', 'trenchFt'].forEach(function (id) { $(id).value = '0'; });
+    $('customList').innerHTML = '';
+    state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
+              mode: state.mode, ssEntry: state.ssEntry };
+    document.querySelectorAll('.seg').forEach(function (seg) {
+      if (!seg.dataset.toggle) return;
+      seg.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.val === '0');
+      });
+    });
+    $('trenchWrap').classList.add('hidden');
+    applyMode(); render();
+  });
+
+  document.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', render); });
+
+  function readDeal() {
+    var customs = [];
+    document.querySelectorAll('#customList .custom-row').forEach(function (r) {
+      customs.push({ description: r.querySelector('.desc').value, amount: r.querySelector('.amt').value });
+    });
+    return {
+      mode: state.mode,
+      ssEntry: state.ssEntry,
+      ssTotal: $('ssTotal').value,
+      ssBatteries: $('ssBatt').value,
+      grossPPW: $('ppw').value,
+      systemKw: $('kw').value,
+      powerwalls: $('pw').value,
+      qcellsBatteries: $('qc').value,
+      qcellsBE: !!state.qbe,
+      mpu: !!state.mpu,
+      trenching: !!state.trench,
+      trenchFeet: $('trenchFt').value,
+      groundMount: !!state.gm,
+      meterRelocation: !!state.meter,
+      customAdders: customs
+    };
+  }
+
+  function render() {
+    document.querySelectorAll('input[type="number"]').forEach(function (i) {
+      if (i.value !== '' && parseFloat(i.value) < 0) i.value = '0';
+    });
+
+    var d = readDeal();
+    var r = computeHousing(d);
+
+    $('wattsNote').textContent = r.watts ? r.watts.toLocaleString('en-US') + ' watts' : ' ';
+    $('total').textContent = money(r.total);
+    $('m2').textContent    = money(r.m2);
+    $('m3').textContent    = money(r.m3);
+
+    var entered = r.byTotal ? nonNeg(d.ssTotal) : nonNeg(d.grossPPW);
+    var w = $('warn');
+    if (r.watts > 0 && entered > 0 && r.stackRaw <= 0) {
+      w.textContent = 'This deal does not clear, so it pays no housing on this job.';
+      w.classList.remove('hidden');
+    } else {
+      w.classList.add('hidden');
+    }
+  }
+
+  applyMode();
+  render();
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { computeHousing: computeHousing, powerwallCost: powerwallCost,
+                     sunstoneBatteryCost: sunstoneBatteryCost, CONFIG: CONFIG };
+}
+</script>
+</body>
+</html>
