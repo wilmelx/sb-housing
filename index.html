@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Solarbridge Housing Payout Calculator</title>
+<title>Solarbridge Commission Calculator</title>
 <style>
   :root {
     color-scheme: light;
@@ -50,6 +50,12 @@
     border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
   }
   .tabs button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .pick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pick button {
+    flex: 1 1 calc(33.333% - 6px); padding: 12px 4px; font-size: 14px; font-weight: 700; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .pick button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
   .sub-field { margin-top: 10px; }
   .custom-row { display: flex; gap: 8px; margin-bottom: 8px; }
   .custom-row input.desc { flex: 2; }
@@ -73,8 +79,8 @@
 <body>
 <div class="wrap">
 
-  <h1>Housing Payout Calculator</h1>
-  <p class="sub">Enter a deal one of your housed reps closed to see what it pays you.</p>
+  <h1>Solarbridge Commission Calculator</h1>
+  <p class="sub">Enter the deal to see the payout.</p>
 
   <div class="tabs" id="modeTabs">
     <button type="button" data-mode="standard" class="on">Standard</button>
@@ -108,7 +114,7 @@
     </div>
     <div class="hint" id="wattsNote">&nbsp;</div>
     <div class="hint hidden" id="ssTotalHint" style="margin-top:6px">
-      Use the total commission Sunstone gave the rep — adders are already taken out of it.
+      Use the total commission Sunstone gave — adders are already taken out of it.
     </div>
   </div>
 
@@ -184,13 +190,42 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Role &amp; Split</h2>
+    <div class="pick" id="roleSeg">
+      <button type="button" data-role="closer" class="on">Closer</button>
+      <button type="button" data-role="setter">Setter</button>
+      <button type="button" data-role="selfgen">Self-Gen</button>
+      <button type="button" data-role="recruiter">Recruiter</button>
+      <button type="button" data-role="housing">Housing</button>
+    </div>
+
+    <div class="hint hidden" id="flatHint" style="margin-top:10px"></div>
+
+    <div id="splitOnly">
+      <div class="toggle-row" style="margin-top:14px">
+        <span class="name">50/50 split?</span>
+        <span class="seg" data-toggle="split">
+          <button type="button" data-val="1">Yes</button>
+          <button type="button" data-val="0">No — 60/40</button>
+        </span>
+      </div>
+      <div class="hint" style="margin-top:-4px">No means 60% to the closer, 40% to the setter.</div>
+    </div>
+
+    <div class="hint hidden" id="selfgenHint" style="margin-top:10px">
+      Self-gen means the rep set and closed it themselves, so they take the whole sales share — there's no split to apply.
+    </div>
+  </div>
+
   <div class="result">
-    <div class="cap">Your Housing Payout</div>
+    <div class="cap" id="resultCap">Closer Commission</div>
     <div class="total" id="total">$0.00</div>
     <div class="milestones">
       <div class="ms"><div class="lbl">M2 — 80%</div><div class="val" id="m2">$0.00</div></div>
       <div class="ms"><div class="lbl">M3 — 20%</div><div class="val" id="m3">$0.00</div></div>
     </div>
+    <div class="note hidden" id="needPick"></div>
     <div class="warn hidden" id="warn"></div>
   </div>
 
@@ -199,14 +234,20 @@
 
 <script>
 /* ============================================================
-   Solarbridge Housing Payout Calculator.
-   Standalone. Shows only what a housing provider earns on a deal
-   closed by one of their housed reps. Contains none of the rep,
-   manager, override or platform figures.
+   Solarbridge Commission Calculator.
+   Shows closer, setter, self-gen, recruiter and housing pay on a
+   deal. Contains none of the platform, manager, regional or
+   installer figures.
    ============================================================ */
 var CONFIG = {
-  BASELINE_PPW: 2.50,   // $/W the commissionable stack is priced from
-  HOUSING_PCT:  0.10,   // housing's share of the stack
+  BASELINE_PPW:   2.50,   // $/W the commissionable stack is priced from
+
+  SALES_ORG_PCT:  0.60,   // closer + setter together, or self-gen alone
+  RECRUITER_PCT:  0.02,
+  HOUSING_PCT:    0.10,
+
+  SPLIT_EVEN:   { closer: 0.50, setter: 0.50 },   // "50/50" toggle = Yes
+  SPLIT_TIERED: { closer: 0.60, setter: 0.40 },   // "50/50" toggle = No
 
   M2_PCT: 0.80,
   M3_PCT: 0.20,
@@ -232,6 +273,18 @@ var CONFIG = {
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 function nonNeg(n) { n = parseFloat(n); return (isFinite(n) && n > 0) ? n : 0; }
 
+function shares(d) {
+  var pool  = CONFIG.SALES_ORG_PCT;
+  var ratio = d.evenSplit ? CONFIG.SPLIT_EVEN : CONFIG.SPLIT_TIERED;
+  return {
+    pool:      pool,
+    closer:    pool * ratio.closer,
+    setter:    pool * ratio.setter,
+    recruiter: CONFIG.RECRUITER_PCT,
+    housing:   CONFIG.HOUSING_PCT
+  };
+}
+
 function powerwallCost(n) {
   n = Math.floor(nonNeg(n));
   return n <= 0 ? 0 : CONFIG.POWERWALL_FIRST + (n - 1) * CONFIG.POWERWALL_ADDITIONAL;
@@ -239,6 +292,14 @@ function powerwallCost(n) {
 function sunstoneBatteryCost(n) {
   n = Math.floor(nonNeg(n));
   return n <= 0 ? 0 : CONFIG.SUNSTONE.BATTERY_FIRST + (n - 1) * CONFIG.SUNSTONE.BATTERY_ADDITIONAL;
+}
+
+function roleShare(role, sh) {
+  if (role === 'setter')    return sh.setter;
+  if (role === 'selfgen')   return sh.pool;
+  if (role === 'recruiter') return sh.recruiter;
+  if (role === 'housing')   return sh.housing;
+  return sh.closer;
 }
 
 function adderTotal(d, watts, sunstone) {
@@ -255,7 +316,7 @@ function adderTotal(d, watts, sunstone) {
   return t;
 }
 
-function computeHousing(d) {
+function computeDeal(d) {
   var sunstone = (d.mode === 'sunstone');
   var byTotal  = sunstone && (d.ssEntry === 'total');
 
@@ -272,7 +333,7 @@ function computeHousing(d) {
   }
   var stack = Math.max(0, stackRaw);
 
-  var total = round2(stack * CONFIG.HOUSING_PCT);
+  var total = round2(stack * roleShare(d.role, shares(d)));
   var m2    = round2(total * CONFIG.M2_PCT);
   var m3    = round2(total - m2);   // remainder, so M2 + M3 === Total exactly
 
@@ -287,8 +348,14 @@ if (typeof document !== 'undefined') {
     return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  var CAPS = { closer: 'Closer Commission', setter: 'Setter Commission',
+               selfgen: 'Self-Gen Commission', recruiter: 'Recruiter Commission',
+               housing: 'Housing Commission' };
+
   var state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
+                split: null, role: 'closer',
                 mode: 'standard', ssEntry: 'total' };
+  var FORCED = { split: 1 };
 
   function applyMode() {
     var ss      = (state.mode === 'sunstone');
@@ -300,6 +367,19 @@ if (typeof document !== 'undefined') {
     $('addersCard').classList.toggle('hidden', byTotal);
     $('stdBatteries').classList.toggle('hidden', ss);
     $('ssBatteryField').classList.toggle('hidden', !ss);
+  }
+
+  function applyRole() {
+    var flat    = (state.role === 'recruiter' || state.role === 'housing');
+    var selfgen = (state.role === 'selfgen');
+    $('splitOnly').classList.toggle('hidden', flat || selfgen);
+    $('selfgenHint').classList.toggle('hidden', !selfgen);
+    $('flatHint').classList.toggle('hidden', !flat);
+    if (flat) {
+      $('flatHint').textContent = (state.role === 'housing' ? 'Housing' : 'Recruiter') +
+        ' pay is a flat rate on the deal, so the split doesn’t affect it.';
+    }
+    $('resultCap').textContent = CAPS[state.role];
   }
 
   $('modeTabs').addEventListener('click', function (e) {
@@ -316,6 +396,14 @@ if (typeof document !== 'undefined') {
     b.classList.add('on');
     state.ssEntry = b.dataset.ss;
     applyMode(); render();
+  });
+
+  $('roleSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    $('roleSeg').querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    state.role = b.dataset.role;
+    applyRole(); render();
   });
 
   document.querySelectorAll('.seg').forEach(function (seg) {
@@ -348,15 +436,18 @@ if (typeof document !== 'undefined') {
     ['pw', 'qc', 'ssBatt', 'trenchFt'].forEach(function (id) { $(id).value = '0'; });
     $('customList').innerHTML = '';
     state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
+              split: null, role: 'closer',
               mode: state.mode, ssEntry: state.ssEntry };
     document.querySelectorAll('.seg').forEach(function (seg) {
       if (!seg.dataset.toggle) return;
+      var forced = FORCED[seg.dataset.toggle];
       seg.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('on', b.dataset.val === '0');
+        b.classList.toggle('on', !forced && b.dataset.val === '0');
       });
     });
+    $('roleSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.role === 'closer'); });
     $('trenchWrap').classList.add('hidden');
-    applyMode(); render();
+    applyMode(); applyRole(); render();
   });
 
   document.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', render); });
@@ -381,8 +472,19 @@ if (typeof document !== 'undefined') {
       trenchFeet: $('trenchFt').value,
       groundMount: !!state.gm,
       meterRelocation: !!state.meter,
-      customAdders: customs
+      customAdders: customs,
+      role: state.role,
+      evenSplit: state.split === 1
     };
+  }
+
+  // Only closer and setter need the split answered.
+  function missing() {
+    var m = [];
+    if (state.role === 'closer' || state.role === 'setter') {
+      if (state.split === null) m.push('the split question');
+    }
+    return m;
   }
 
   function render() {
@@ -391,17 +493,23 @@ if (typeof document !== 'undefined') {
     });
 
     var d = readDeal();
-    var r = computeHousing(d);
+    var r = computeDeal(d);
+    var need = missing();
+    var ok = (need.length === 0);
 
     $('wattsNote').textContent = r.watts ? r.watts.toLocaleString('en-US') + ' watts' : ' ';
-    $('total').textContent = money(r.total);
-    $('m2').textContent    = money(r.m2);
-    $('m3').textContent    = money(r.m3);
+    $('total').textContent = ok ? money(r.total) : '—';
+    $('m2').textContent    = ok ? money(r.m2) : '—';
+    $('m3').textContent    = ok ? money(r.m3) : '—';
+    $('needPick').textContent = ok ? '' : 'Choose ' + need.join(' and ') + ' to see the commission.';
+    $('needPick').classList.toggle('hidden', ok);
 
     var entered = r.byTotal ? nonNeg(d.ssTotal) : nonNeg(d.grossPPW);
     var w = $('warn');
-    if (r.watts > 0 && entered > 0 && r.stackRaw <= 0) {
-      w.textContent = 'This deal does not clear, so it pays no housing on this job.';
+    if (ok && r.watts > 0 && entered > 0 && r.stackRaw <= 0) {
+      w.textContent = r.byTotal
+        ? 'This commission does not clear on a system this size, so it pays nothing.'
+        : 'This deal does not generate commission as priced. Raise the PPW or reduce adders.';
       w.classList.remove('hidden');
     } else {
       w.classList.add('hidden');
@@ -409,12 +517,13 @@ if (typeof document !== 'undefined') {
   }
 
   applyMode();
+  applyRole();
   render();
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { computeHousing: computeHousing, powerwallCost: powerwallCost,
-                     sunstoneBatteryCost: sunstoneBatteryCost, CONFIG: CONFIG };
+  module.exports = { computeDeal: computeDeal, powerwallCost: powerwallCost,
+                     sunstoneBatteryCost: sunstoneBatteryCost, shares: shares, CONFIG: CONFIG };
 }
 </script>
 </body>
