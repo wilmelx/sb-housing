@@ -83,8 +83,10 @@
   <p class="sub">Enter the deal to see the payout.</p>
 
   <div class="tabs" id="modeTabs">
-    <button type="button" data-mode="standard" class="on">Standard</button>
+    <button type="button" data-mode="axia" class="on">Axia</button>
     <button type="button" data-mode="sunstone">Sunstone</button>
+    <button type="button" data-mode="betterEarth">Better Earth</button>
+    <button type="button" data-mode="peak">Peak</button>
   </div>
 
   <div class="card">
@@ -253,7 +255,15 @@
    installer figures.
    ============================================================ */
 var CONFIG = {
-  BASELINE_PPW:   2.50,   // $/W the commissionable stack is priced from
+  // Baseline is the $/W the rep's commissionable stack is priced from.
+  // It varies by installer.
+  INSTALLERS: {
+    axia:        { label: 'Axia',         baseline: 2.50 },
+    sunstone:    { label: 'Sunstone',     baseline: 2.50 },
+    betterEarth: { label: 'Better Earth', baseline: 2.50 },
+    peak:        { label: 'Peak',         baseline: 2.75 }
+  },
+  DEFAULT_INSTALLER: 'axia',
 
   SALES_ORG_PCT:  0.60,   // closer + setter together, or self-gen alone
   HOUSING_PCT:    0.10,   // paid on an in-house lead; moves to the sales pool otherwise
@@ -300,6 +310,11 @@ function shares(d) {
   };
 }
 
+function baselineFor(instKey) {
+  var i = CONFIG.INSTALLERS[instKey] || CONFIG.INSTALLERS[CONFIG.DEFAULT_INSTALLER];
+  return i.baseline;
+}
+
 function powerwallCost(n) {
   n = Math.floor(nonNeg(n));
   return n <= 0 ? 0 : CONFIG.POWERWALL_FIRST + (n - 1) * CONFIG.POWERWALL_ADDITIONAL;
@@ -344,7 +359,7 @@ function computeDeal(d) {
     stackRaw = nonNeg(d.ssTotal) - (kw * CONFIG.SUNSTONE.WITHHOLD_PER_KW);
   } else {
     adders   = adderTotal(d, watts, sunstone);
-    stackRaw = (nonNeg(d.grossPPW) * watts) - (watts * CONFIG.BASELINE_PPW) - adders;
+    stackRaw = (nonNeg(d.grossPPW) * watts) - (watts * baselineFor(d.mode)) - adders;
   }
   var stack = Math.max(0, stackRaw);
 
@@ -369,7 +384,7 @@ if (typeof document !== 'undefined') {
 
   var state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
                 split: null, inhouse: null, role: 'closer',
-                mode: 'standard', ssEntry: 'total' };
+                mode: CONFIG.DEFAULT_INSTALLER, ssEntry: 'total' };
   var FORCED = { split: 1, inhouse: 1 };
 
   function applyMode() {
