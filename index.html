@@ -202,8 +202,21 @@
 
     <div class="hint hidden" id="flatHint" style="margin-top:10px"></div>
 
-    <div id="splitOnly">
+    <div id="houseQ">
       <div class="toggle-row" style="margin-top:14px">
+        <span class="name">In-house lead?</span>
+        <span class="seg" data-toggle="inhouse">
+          <button type="button" data-val="1">Yes</button>
+          <button type="button" data-val="0">No</button>
+        </span>
+      </div>
+      <div class="hint" style="margin:-4px 0 4px">
+        Answer for whoever generated the lead. An out-of-house lead moves the housing share to the sales side.
+      </div>
+    </div>
+
+    <div id="splitOnly">
+      <div class="toggle-row">
         <span class="name">50/50 split?</span>
         <span class="seg" data-toggle="split">
           <button type="button" data-val="1">Yes</button>
@@ -243,8 +256,8 @@ var CONFIG = {
   BASELINE_PPW:   2.50,   // $/W the commissionable stack is priced from
 
   SALES_ORG_PCT:  0.60,   // closer + setter together, or self-gen alone
+  HOUSING_PCT:    0.10,   // paid on an in-house lead; moves to the sales pool otherwise
   RECRUITER_PCT:  0.02,
-  HOUSING_PCT:    0.10,
 
   SPLIT_EVEN:   { closer: 0.50, setter: 0.50 },   // "50/50" toggle = Yes
   SPLIT_TIERED: { closer: 0.60, setter: 0.40 },   // "50/50" toggle = No
@@ -273,15 +286,17 @@ var CONFIG = {
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 function nonNeg(n) { n = parseFloat(n); return (isFinite(n) && n > 0) ? n : 0; }
 
+// An out-of-house lead moves the housing share into the sales pool, so the pool
+// goes from 60% to 70% and the housing line pays nothing.
 function shares(d) {
-  var pool  = CONFIG.SALES_ORG_PCT;
+  var pool  = CONFIG.SALES_ORG_PCT + (d.inHouse ? 0 : CONFIG.HOUSING_PCT);
   var ratio = d.evenSplit ? CONFIG.SPLIT_EVEN : CONFIG.SPLIT_TIERED;
   return {
     pool:      pool,
     closer:    pool * ratio.closer,
     setter:    pool * ratio.setter,
     recruiter: CONFIG.RECRUITER_PCT,
-    housing:   CONFIG.HOUSING_PCT
+    housing:   d.inHouse ? CONFIG.HOUSING_PCT : 0
   };
 }
 
@@ -353,9 +368,9 @@ if (typeof document !== 'undefined') {
                housing: 'Housing Commission' };
 
   var state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
-                split: null, role: 'closer',
+                split: null, inhouse: null, role: 'closer',
                 mode: 'standard', ssEntry: 'total' };
-  var FORCED = { split: 1 };
+  var FORCED = { split: 1, inhouse: 1 };
 
   function applyMode() {
     var ss      = (state.mode === 'sunstone');
@@ -370,16 +385,22 @@ if (typeof document !== 'undefined') {
   }
 
   function applyRole() {
-    var flat    = (state.role === 'recruiter' || state.role === 'housing');
-    var selfgen = (state.role === 'selfgen');
+    var role      = state.role;
+    var isHousing = (role === 'housing');
+    var flat      = (role === 'recruiter' || isHousing);
+    var selfgen   = (role === 'selfgen');
+
+    // Recruiter is the only role untouched by the in-house question.
+    $('houseQ').classList.toggle('hidden', role === 'recruiter');
     $('splitOnly').classList.toggle('hidden', flat || selfgen);
     $('selfgenHint').classList.toggle('hidden', !selfgen);
     $('flatHint').classList.toggle('hidden', !flat);
     if (flat) {
-      $('flatHint').textContent = (state.role === 'housing' ? 'Housing' : 'Recruiter') +
-        ' pay is a flat rate on the deal, so the split doesn’t affect it.';
+      $('flatHint').textContent = isHousing
+        ? 'Housing pays a flat rate on in-house leads only, so the split doesn’t affect it.'
+        : 'Recruiter pay is a flat rate on the deal, so neither question affects it.';
     }
-    $('resultCap').textContent = CAPS[state.role];
+    $('resultCap').textContent = CAPS[role];
   }
 
   $('modeTabs').addEventListener('click', function (e) {
@@ -436,7 +457,7 @@ if (typeof document !== 'undefined') {
     ['pw', 'qc', 'ssBatt', 'trenchFt'].forEach(function (id) { $(id).value = '0'; });
     $('customList').innerHTML = '';
     state = { mpu: 0, trench: 0, gm: 0, meter: 0, qbe: 0,
-              split: null, role: 'closer',
+              split: null, inhouse: null, role: 'closer',
               mode: state.mode, ssEntry: state.ssEntry };
     document.querySelectorAll('.seg').forEach(function (seg) {
       if (!seg.dataset.toggle) return;
@@ -446,6 +467,8 @@ if (typeof document !== 'undefined') {
       });
     });
     $('roleSeg').querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.role === 'closer'); });
+    $('houseQ').classList.remove('hidden');
+    $('splitOnly').classList.remove('hidden');
     $('trenchWrap').classList.add('hidden');
     applyMode(); applyRole(); render();
   });
@@ -474,15 +497,19 @@ if (typeof document !== 'undefined') {
       meterRelocation: !!state.meter,
       customAdders: customs,
       role: state.role,
+      inHouse: state.inhouse === 1,
       evenSplit: state.split === 1
     };
   }
 
-  // Only closer and setter need the split answered.
+  // Recruiter needs neither question. Everyone else needs the in-house answer;
+  // closer and setter also need the split.
   function missing() {
     var m = [];
-    if (state.role === 'closer' || state.role === 'setter') {
-      if (state.split === null) m.push('the split question');
+    if (state.role === 'recruiter') return m;
+    if (state.inhouse === null) m.push('the in-house question');
+    if ((state.role === 'closer' || state.role === 'setter') && state.split === null) {
+      m.push('the split question');
     }
     return m;
   }
@@ -501,8 +528,11 @@ if (typeof document !== 'undefined') {
     $('total').textContent = ok ? money(r.total) : '—';
     $('m2').textContent    = ok ? money(r.m2) : '—';
     $('m3').textContent    = ok ? money(r.m3) : '—';
-    $('needPick').textContent = ok ? '' : 'Choose ' + need.join(' and ') + ' to see the commission.';
-    $('needPick').classList.toggle('hidden', ok);
+    var noHousing = ok && state.role === 'housing' && state.inhouse === 0;
+    $('needPick').textContent = !ok
+      ? 'Choose ' + need.join(' and ') + ' to see the commission.'
+      : (noHousing ? 'Out-of-house lead — housing pays nothing on this deal. Those points go to the sales side.' : '');
+    $('needPick').classList.toggle('hidden', ok && !noHousing);
 
     var entered = r.byTotal ? nonNeg(d.ssTotal) : nonNeg(d.grossPPW);
     var w = $('warn');
